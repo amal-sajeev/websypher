@@ -16,10 +16,14 @@ let animationState = {
     imageWidth: 0,
     imageHeight: 0,
     overlayOpacity: 1.0,  // 0.0 to 1.0
-    zoomLevel: 1.0,  // Zoom level (1.0 = 100%)
-    currentImage: null,  // Store the current image for zoom redraws
-    previousZoomLevel: 1.0  // Track previous zoom for scroll adjustment
+    currentImage: null,  // Store the current image for redraws
+    displayWidth: 0,  // Current display width
+    displayHeight: 0  // Current display height
 };
+
+// Fullscreen state
+let isFullscreen = false;
+let originalCanvasSize = { width: 0, height: 0 };
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -807,10 +811,10 @@ async function loadScreenshot(trajectoryType, stepIndex) {
     
     stopOverlayAnimation();
     
-    // Reset zoom when loading new screenshot
-    animationState.zoomLevel = 1.0;
-    animationState.previousZoomLevel = 1.0;
-    updateZoomDisplay();
+    // Reset fullscreen state when loading new screenshot
+    if (isFullscreen) {
+        toggleFullscreen();
+    }
     
     modal.style.display = 'block';
     loading.style.display = 'block';
@@ -872,16 +876,10 @@ async function loadScreenshot(trajectoryType, stepIndex) {
                 
                 const scaleX = maxWidth / displayWidth;
                 const scaleY = maxHeight / displayHeight;
-                const baseScale = Math.min(scaleX, scaleY, 1);
+                const scale = Math.min(scaleX, scaleY, 1);
                 
-                // Store base dimensions and scale for zoom calculations
-                animationState.baseDisplayWidth = Math.floor(displayWidth * baseScale);
-                animationState.baseDisplayHeight = Math.floor(displayHeight * baseScale);
-                animationState.baseScale = baseScale;
-                
-                // Apply zoom level
-                displayWidth = Math.floor(animationState.baseDisplayWidth * animationState.zoomLevel);
-                displayHeight = Math.floor(animationState.baseDisplayHeight * animationState.zoomLevel);
+                displayWidth = Math.floor(displayWidth * scale);
+                displayHeight = Math.floor(displayHeight * scale);
                 
                 canvas.width = displayWidth;
                 canvas.height = displayHeight;
@@ -891,18 +889,16 @@ async function loadScreenshot(trajectoryType, stepIndex) {
                 animationState.imageHeight = img.naturalHeight;
                 animationState.currentAction = actionData;
                 animationState.dragEnd = dragEndData;
-                animationState.currentImage = img;  // Store image reference for zoom
+                animationState.currentImage = img;
+                animationState.displayWidth = displayWidth;
+                animationState.displayHeight = displayHeight;
+                
+                // Store original size for fullscreen toggle
+                originalCanvasSize.width = displayWidth;
+                originalCanvasSize.height = displayHeight;
                 
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, displayWidth, displayHeight);
-                
-                // Update zoom level display
-                updateZoomDisplay();
-                
-                // Center the image when first loaded (at 100% zoom)
-                if (animationState.zoomLevel === 1.0) {
-                    centerImageOnLoad();
-                }
                 
                 if (stepIndex === 0 || !actionData) {
                     updateActionInfoPanel(null, null);
@@ -910,7 +906,6 @@ async function loadScreenshot(trajectoryType, stepIndex) {
                         toggleBtn.style.display = 'none';
                     }
                 } else {
-                    // Store image reference for zoom
                     document.getElementById('screenshot-image').src = data.screenshot;
                     startOverlayAnimation(canvas, img);
                     updateActionInfoPanel(actionData, dragEndData);
@@ -971,10 +966,10 @@ function closeScreenshot() {
     if (actionPanel) {
         actionPanel.style.display = 'none';
     }
-    // Reset zoom when closing
-    animationState.zoomLevel = 1.0;
-    animationState.previousZoomLevel = 1.0;
-    updateZoomDisplay();
+    // Reset fullscreen state when closing
+    if (isFullscreen) {
+        toggleFullscreen();
+    }
 }
 
 // Initialize screenshot modal handlers
@@ -988,77 +983,16 @@ function initScreenshotModal() {
     const opacityValue = document.getElementById('opacity-value');
     const wrapper = document.querySelector('.screenshot-image-wrapper');
     
-    // Add drag functionality and prevent background scrolling
+    // Prevent background scrolling when interacting with screenshot
     if (wrapper) {
-        let isDragging = false;
-        let startX = 0;
-        let startY = 0;
-        let scrollLeft = 0;
-        let scrollTop = 0;
-        
-        wrapper.addEventListener('mousedown', (e) => {
-            // Only start drag if clicking on the wrapper or canvas, not on buttons
-            if (e.target === wrapper || e.target.id === 'screenshot-canvas') {
-                isDragging = true;
-                wrapper.style.cursor = 'grabbing';
-                const rect = wrapper.getBoundingClientRect();
-                startX = e.clientX;
-                startY = e.clientY;
-                scrollLeft = wrapper.scrollLeft;
-                scrollTop = wrapper.scrollTop;
-                e.preventDefault();
-                e.stopPropagation();
-            }
-        });
-        
-        document.addEventListener('mouseleave', () => {
-            if (isDragging) {
-                isDragging = false;
-                wrapper.style.cursor = 'grab';
-            }
-        });
-        
-        document.addEventListener('mouseup', (e) => {
-            if (isDragging) {
-                isDragging = false;
-                wrapper.style.cursor = 'grab';
-            }
-        });
-        
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-            e.preventDefault();
-            e.stopPropagation();
-            const walkX = (e.clientX - startX);
-            const walkY = (e.clientY - startY);
-            wrapper.scrollLeft = scrollLeft - walkX;
-            wrapper.scrollTop = scrollTop - walkY;
-        });
-        
         // Prevent wheel events from scrolling the background when over the wrapper
         wrapper.addEventListener('wheel', (e) => {
-            // Always stop propagation to prevent background scrolling
             e.stopPropagation();
-            
-            // Check if we can scroll in the direction of the wheel
-            const maxScrollTop = wrapper.scrollHeight - wrapper.clientHeight;
-            const maxScrollLeft = wrapper.scrollWidth - wrapper.clientWidth;
-            const canScrollVertical = maxScrollTop > 0 && ((e.deltaY > 0 && wrapper.scrollTop < maxScrollTop) ||
-                                     (e.deltaY < 0 && wrapper.scrollTop > 0));
-            const canScrollHorizontal = maxScrollLeft > 0 && ((e.deltaX > 0 && wrapper.scrollLeft < maxScrollLeft) ||
-                                       (e.deltaX < 0 && wrapper.scrollLeft > 0));
-            
-            // If we can't scroll in this direction and there's no scrollable content, prevent default
-            if (!canScrollVertical && !canScrollHorizontal && maxScrollTop <= 0 && maxScrollLeft <= 0) {
-                e.preventDefault();
-            }
         }, { passive: false });
         
-        // Also prevent touch events from scrolling background
+        // Prevent touch events from scrolling background
         wrapper.addEventListener('touchmove', (e) => {
-            if (wrapper.scrollHeight > wrapper.clientHeight || wrapper.scrollWidth > wrapper.clientWidth) {
-                e.stopPropagation();
-            }
+            e.stopPropagation();
         }, { passive: true });
     }
     
@@ -1098,35 +1032,30 @@ function initScreenshotModal() {
         });
     }
     
-    // Zoom controls
-    const zoomInBtn = document.getElementById('zoom-in-btn');
-    const zoomOutBtn = document.getElementById('zoom-out-btn');
-    const zoomResetBtn = document.getElementById('zoom-reset-btn');
+    // Add click handler for fullscreen toggle
+    const canvas = document.getElementById('screenshot-canvas');
+    const wrapper = document.querySelector('.screenshot-image-wrapper');
     
-    if (zoomInBtn) {
-        zoomInBtn.addEventListener('click', () => {
-            animationState.zoomLevel = Math.min(animationState.zoomLevel + 0.25, 4.0);
-            applyZoom();
+    if (canvas && wrapper) {
+        canvas.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleFullscreen();
         });
-    }
-    
-    if (zoomOutBtn) {
-        zoomOutBtn.addEventListener('click', () => {
-            animationState.zoomLevel = Math.max(animationState.zoomLevel - 0.25, 0.25);
-            applyZoom();
-        });
-    }
-    
-    if (zoomResetBtn) {
-        zoomResetBtn.addEventListener('click', () => {
-            animationState.zoomLevel = 1.0;
-            applyZoom();
+        
+        wrapper.addEventListener('click', (e) => {
+            // Only trigger if clicking on the wrapper itself, not on canvas
+            if (e.target === wrapper) {
+                toggleFullscreen();
+            }
         });
     }
     
     if (modal) {
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
+            // If in fullscreen, clicking modal background should exit fullscreen
+            if (isFullscreen && e.target === modal) {
+                toggleFullscreen();
+            } else if (e.target === modal) {
                 closeScreenshot();
             }
         });
@@ -1136,217 +1065,97 @@ function initScreenshotModal() {
         if (!currentScreenshotModal) return;
         
         if (e.key === 'Escape') {
-            closeScreenshot();
+            // If in fullscreen, exit fullscreen first
+            if (isFullscreen) {
+                toggleFullscreen();
+            } else {
+                closeScreenshot();
+            }
         } else if (e.key === 'ArrowLeft') {
             navigateScreenshot(-1);
         } else if (e.key === 'ArrowRight') {
             navigateScreenshot(1);
-        } else if (e.key === '+' || e.key === '=') {
-            e.preventDefault();
-            animationState.zoomLevel = Math.min(animationState.zoomLevel + 0.25, 4.0);
-            applyZoom();
-        } else if (e.key === '-' || e.key === '_') {
-            e.preventDefault();
-            animationState.zoomLevel = Math.max(animationState.zoomLevel - 0.25, 0.25);
-            applyZoom();
-        } else if (e.key === '0') {
-            e.preventDefault();
-            animationState.zoomLevel = 1.0;
-            applyZoom();
         }
     });
 }
 
-// Update zoom level display
-function updateZoomDisplay() {
-    const zoomLevelDisplay = document.getElementById('zoom-level');
-    if (zoomLevelDisplay) {
-        zoomLevelDisplay.textContent = `${Math.round(animationState.zoomLevel * 100)}%`;
-    }
-}
-
-// Apply zoom to current screenshot
-function applyZoom() {
+// Toggle fullscreen mode for screenshot
+function toggleFullscreen() {
     const canvas = document.getElementById('screenshot-canvas');
     const wrapper = document.querySelector('.screenshot-image-wrapper');
-    if (!canvas || !animationState.baseDisplayWidth) return;
+    const modal = document.getElementById('screenshot-modal');
     
-    // Store old zoom for scroll calculation
-    const oldZoom = animationState.previousZoomLevel;
-    animationState.previousZoomLevel = animationState.zoomLevel;
+    if (!canvas || !wrapper || !modal) return;
     
-    updateZoomDisplay();
-    
-    // Store current viewport center position before zoom
-    let centerX = 0;
-    let centerY = 0;
-    let currentScrollX = 0;
-    let currentScrollY = 0;
-    
-    if (wrapper) {
-        const wrapperRect = wrapper.getBoundingClientRect();
-        centerX = wrapperRect.width / 2;
-        centerY = wrapperRect.height / 2;
-        currentScrollX = wrapper.scrollLeft;
-        currentScrollY = wrapper.scrollTop;
-    }
-    
-    // Calculate new dimensions
-    const displayWidth = Math.floor(animationState.baseDisplayWidth * animationState.zoomLevel);
-    const displayHeight = Math.floor(animationState.baseDisplayHeight * animationState.zoomLevel);
-    
-    // Update canvas size - this is critical for scrolling to work
-    canvas.width = displayWidth;
-    canvas.height = displayHeight;
-    
-    // Force a reflow to ensure the wrapper recognizes the new canvas size
-    if (wrapper) {
-        void wrapper.offsetHeight; // Force reflow
-    }
-    
-    // Use stored image reference
     const img = animationState.currentImage;
-    if (!img) {
-        // Fallback to image element
-        const imgElement = document.getElementById('screenshot-image');
-        if (!imgElement || !imgElement.complete) {
-            return;
-        }
-        // Create a new Image object from the src
-        const newImg = new Image();
-        newImg.onload = () => {
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(newImg, 0, 0, displayWidth, displayHeight);
-            if (animationState.currentAction) {
-                renderActionOverlay(ctx, canvas.width, canvas.height);
-            }
-            // Adjust scroll to maintain viewport center
-            adjustScrollAfterZoom(wrapper, oldZoom, centerX, centerY, currentScrollX, currentScrollY);
-        };
-        newImg.src = imgElement.src;
-        return;
-    }
+    if (!img) return;
     
-    const ctx = canvas.getContext('2d');
-    
-    // Redraw the image at new zoom level
-    ctx.drawImage(img, 0, 0, displayWidth, displayHeight);
-    
-    // Redraw overlay if there's an action
-    if (animationState.currentAction) {
-        renderActionOverlay(ctx, canvas.width, canvas.height);
-    }
-    
-    // Force reflow again after drawing to ensure scrollHeight updates
-    if (wrapper) {
-        void wrapper.offsetHeight;
-        // Small delay to ensure DOM has updated
-        setTimeout(() => {
-            adjustScrollAfterZoom(wrapper, oldZoom, centerX, centerY, currentScrollX, currentScrollY);
-        }, 0);
-    } else {
-        adjustScrollAfterZoom(wrapper, oldZoom, centerX, centerY, currentScrollX, currentScrollY);
-    }
-}
-
-// Center the image when first loaded (at 100% zoom)
-function centerImageOnLoad() {
-    const wrapper = document.querySelector('.screenshot-image-wrapper');
-    const canvas = document.getElementById('screenshot-canvas');
-    if (!wrapper || !canvas) return;
-    
-    // Use requestAnimationFrame to ensure DOM has updated
-    requestAnimationFrame(() => {
-        // Wait a bit more for layout to settle
-        setTimeout(() => {
-            const maxScrollX = Math.max(0, canvas.width - wrapper.clientWidth);
-            const maxScrollY = Math.max(0, canvas.height - wrapper.clientHeight);
-            
-            // Center horizontally if canvas is smaller than wrapper
-            if (maxScrollX <= 0) {
-                wrapper.scrollLeft = 0;
-            } else {
-                wrapper.scrollLeft = maxScrollX / 2;
-            }
-            // Center vertically if canvas is smaller than wrapper
-            if (maxScrollY <= 0) {
-                wrapper.scrollTop = 0;
-            } else {
-                wrapper.scrollTop = maxScrollY / 2;
-            }
-        }, 10);
-    });
-}
-
-// Adjust scroll position to maintain viewport center when zooming
-function adjustScrollAfterZoom(wrapper, oldZoom, centerX, centerY, oldScrollX, oldScrollY) {
-    if (!wrapper || !animationState.baseDisplayWidth) {
-        return;
-    }
-    
-    const canvas = document.getElementById('screenshot-canvas');
-    if (!canvas) return;
-    
-    // Calculate maximum scroll values based on canvas size and wrapper size
-    const maxScrollX = Math.max(0, canvas.width - wrapper.clientWidth);
-    const maxScrollY = Math.max(0, canvas.height - wrapper.clientHeight);
-    
-    if (oldZoom === 0 || (oldZoom === 1.0 && animationState.zoomLevel !== 1.0)) {
-        // On first zoom from 1.0, center the image if it's larger than viewport
-        if (maxScrollX > 0) {
-            wrapper.scrollLeft = maxScrollX / 2;
-        } else {
-            wrapper.scrollLeft = 0;
-        }
-        if (maxScrollY > 0) {
-            wrapper.scrollTop = maxScrollY / 2;
-        } else {
-            wrapper.scrollTop = 0;
-        }
-        return;
-    }
-    
-    // Calculate the point in the image that was at the viewport center before zoom
-    // This is the point we want to keep at the center after zoom
-    const imageX = oldScrollX + centerX;
-    const imageY = oldScrollY + centerY;
-    
-    // Scale factor from old zoom to new zoom
-    const zoomRatio = animationState.zoomLevel / oldZoom;
-    
-    // The same point in image coordinates at the new zoom level
-    const newImageX = imageX * zoomRatio;
-    const newImageY = imageY * zoomRatio;
-    
-    // Calculate desired scroll to keep that point at the viewport center
-    const desiredScrollX = newImageX - centerX;
-    const desiredScrollY = newImageY - centerY;
-    
-    // Clamp to valid scroll range (0 to maxScroll) - this ensures all parts are accessible
-    wrapper.scrollLeft = Math.max(0, Math.min(desiredScrollX, maxScrollX));
-    wrapper.scrollTop = Math.max(0, Math.min(desiredScrollY, maxScrollY));
-}
-
-// Center the image when first loaded
-function centerImageOnLoad() {
-    const wrapper = document.querySelector('.screenshot-image-wrapper');
-    const canvas = document.getElementById('screenshot-canvas');
-    if (!wrapper || !canvas) return;
-    
-    // Use requestAnimationFrame to ensure DOM has updated
-    requestAnimationFrame(() => {
-        const maxScrollX = Math.max(0, canvas.width - wrapper.clientWidth);
-        const maxScrollY = Math.max(0, canvas.height - wrapper.clientHeight);
+    if (!isFullscreen) {
+        // Enter fullscreen
+        isFullscreen = true;
+        wrapper.classList.add('screenshot-fullscreen');
         
-        // Center horizontally if canvas is smaller than wrapper
-        if (maxScrollX <= 0) {
-            wrapper.scrollLeft = 0;
+        // Calculate fullscreen dimensions (fill viewport while maintaining aspect ratio)
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const imageAspect = img.naturalWidth / img.naturalHeight;
+        const viewportAspect = viewportWidth / viewportHeight;
+        
+        let fullscreenWidth, fullscreenHeight;
+        if (imageAspect > viewportAspect) {
+            // Image is wider - fit to width
+            fullscreenWidth = viewportWidth;
+            fullscreenHeight = viewportWidth / imageAspect;
+        } else {
+            // Image is taller - fit to height
+            fullscreenHeight = viewportHeight;
+            fullscreenWidth = viewportHeight * imageAspect;
         }
-        // Center vertically if canvas is smaller than wrapper
-        if (maxScrollY <= 0) {
-            wrapper.scrollTop = 0;
+        
+        // Update canvas size
+        canvas.width = Math.floor(fullscreenWidth);
+        canvas.height = Math.floor(fullscreenHeight);
+        animationState.displayWidth = canvas.width;
+        animationState.displayHeight = canvas.height;
+        
+        // Redraw image and overlay
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        if (animationState.currentAction) {
+            renderActionOverlay(ctx, canvas.width, canvas.height);
         }
-    });
+        
+        // If animation is running, restart it with new dimensions
+        if (animationState.running) {
+            stopOverlayAnimation();
+            startOverlayAnimation(canvas, img);
+        }
+    } else {
+        // Exit fullscreen
+        isFullscreen = false;
+        wrapper.classList.remove('screenshot-fullscreen');
+        
+        // Restore original canvas size
+        canvas.width = originalCanvasSize.width;
+        canvas.height = originalCanvasSize.height;
+        animationState.displayWidth = canvas.width;
+        animationState.displayHeight = canvas.height;
+        
+        // Redraw image and overlay
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        if (animationState.currentAction) {
+            renderActionOverlay(ctx, canvas.width, canvas.height);
+        }
+        
+        // If animation is running, restart it with original dimensions
+        if (animationState.running) {
+            stopOverlayAnimation();
+            startOverlayAnimation(canvas, img);
+        }
+    }
 }
 
 // ============================================
@@ -1363,13 +1172,15 @@ function startOverlayAnimation(canvas, image) {
         
         const ctx = canvas.getContext('2d');
         
-        // Update canvas size based on zoom
-        const displayWidth = Math.floor(animationState.baseDisplayWidth * animationState.zoomLevel);
-        const displayHeight = Math.floor(animationState.baseDisplayHeight * animationState.zoomLevel);
+        // Use current display dimensions (may be fullscreen or normal)
+        const displayWidth = animationState.displayWidth;
+        const displayHeight = animationState.displayHeight;
         
-        // Always update canvas size to ensure proper scrolling
-        canvas.width = displayWidth;
-        canvas.height = displayHeight;
+        // Ensure canvas size matches current display size
+        if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+            canvas.width = displayWidth;
+            canvas.height = displayHeight;
+        }
         
         ctx.drawImage(image, 0, 0, displayWidth, displayHeight);
         
@@ -1396,7 +1207,7 @@ function renderActionOverlay(ctx, canvasWidth, canvasHeight) {
     const action = animationState.currentAction;
     if (!action || action.action_type === 'unknown') return;
     
-    // Calculate scale: base scale * zoom level
+    // Calculate scale based on current canvas size vs original image size
     const scaleX = (canvasWidth / animationState.imageWidth);
     const scaleY = (canvasHeight / animationState.imageHeight);
     
