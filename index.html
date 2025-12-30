@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSypher - Task Review</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div id="matrix-bg"></div>
+
+    <div class="container">
+        <header class="header">
+            <h1 class="glitch" data-text="WEBSYPHER">WEBSYPHER</h1>
+            <p class="subtitle">Task Review System</p>
+        </header>
+
+        <!-- Folder Selection -->
+        <section class="section folder-selection">
+            <h2>Select Task Folder</h2>
+            <div class="folder-input-group">
+                <input type="file" id="folder-input" webkitdirectory directory multiple style="display: none;">
+                <input type="text" id="folder-path" placeholder="No folder selected" class="glitch-input" readonly>
+                <button id="browse-btn" class="btn btn-primary">Browse</button>
+                <button id="analyze-btn" class="btn btn-analyze" disabled>Analyze</button>
+            </div>
+            <div id="drag-drop-zone" class="drag-drop-zone">
+                <p>📁 Drag and drop a folder here</p>
+                <p style="font-size: 0.9rem; opacity: 0.7;">or click to browse</p>
+            </div>
+            <div class="analysis-options" style="margin-top: 15px;">
+                <label
+                    style="display: flex; align-items: center; gap: 10px; color: var(--text-secondary); cursor: pointer;">
+                    <input type="checkbox" id="check-png-xml"
+                        style="width: 18px; height: 18px; accent-color: var(--matrix-green);">
+                    <span>Enable PNG/XML count check (Criterion 9) - Optional</span>
+                </label>
+            </div>
+            <div id="folder-status" class="status-message"></div>
+        </section>
+
+        <!-- Task Info -->
+        <section class="section task-info" id="task-info" style="display: none;">
+            <h2>Task Information</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Task ID:</span>
+                    <span id="task-id" class="info-value">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Model:</span>
+                    <span id="model-name" class="info-value">-</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analysis Results -->
+        <section class="section results" id="results-section" style="display: none;">
+            <h2>Validation Results</h2>
+            <div class="results-grid" id="results-grid"></div>
+        </section>
+
+        <!-- Comparison Views -->
+        <section class="section comparison-views" id="comparison-section" style="display: none;">
+            <h2>Detailed Reviews</h2>
+            <div class="comparison-tabs">
+                <button class="tab-btn active" data-tab="notebook">Notebook Assistant Cells (Criterion 4)</button>
+                <button class="tab-btn" data-tab="trajectory">Trajectory Comparison (Criterion 5)</button>
+            </div>
+
+            <!-- Notebook Comparison Panel -->
+            <div id="notebook-panel" class="comparison-panel active">
+                <div class="panel-controls">
+                    <input type="text" id="notebook-search" placeholder="Search in cells..." class="search-input">
+                    <button id="export-notebook" class="btn btn-export">Export</button>
+                </div>
+                <div class="notebook-grid" id="notebook-grid">
+                    <div class="notebook-column">
+                        <div id="notebook-sft-header"></div>
+                        <div class="notebook-cells" id="notebook-sft"></div>
+                    </div>
+                    <div class="notebook-column">
+                        <div id="notebook-ann1-header"></div>
+                        <div class="notebook-cells" id="notebook-ann1"></div>
+                    </div>
+                    <div class="notebook-column">
+                        <div id="notebook-ann2-header"></div>
+                        <div class="notebook-cells" id="notebook-ann2"></div>
+                    </div>
+                    <div class="notebook-column">
+                        <div id="notebook-ann3-header"></div>
+                        <div class="notebook-cells" id="notebook-ann3"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trajectory Comparison Panel -->
+            <div id="trajectory-panel" class="comparison-panel">
+                <div class="panel-controls">
+                    <select id="trajectory-filter" class="filter-select">
+                        <option value="all">All Actions</option>
+                        <option value="diff">Differences Only</option>
+                        <option value="same">Similarities Only</option>
+                    </select>
+                    <button id="export-trajectory" class="btn btn-export">Export Report</button>
+                </div>
+                <div class="similarity-matrix-container">
+                    <h3 class="similarity-matrix-title">Similarity Matrix</h3>
+                    <div class="similarity-matrix" id="similarity-matrix"></div>
+                </div>
+                <div class="trajectory-grid" id="trajectory-grid">
+                    <div class="trajectory-column">
+                        <div id="trajectory-sft-header"></div>
+                        <div class="trajectory-actions" id="trajectory-sft"></div>
+                    </div>
+                    <div class="trajectory-column">
+                        <div id="trajectory-ann1-header"></div>
+                        <div class="trajectory-actions" id="trajectory-ann1"></div>
+                    </div>
+                    <div class="trajectory-column">
+                        <div id="trajectory-ann2-header"></div>
+                        <div class="trajectory-actions" id="trajectory-ann2"></div>
+                    </div>
+                    <div class="trajectory-column">
+                        <div id="trajectory-ann3-header"></div>
+                        <div class="trajectory-actions" id="trajectory-ann3"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Task Information -->
+        <section class="section task-info" id="task-info-section" style="display: none;">
+            <h2>Task Information</h2>
+            <div class="task-info-content">
+                <div class="info-section">
+                    <h3>Instruction</h3>
+                    <div class="info-box" id="task-instruction"></div>
+                </div>
+
+                <div class="info-section">
+                    <h3>Snapshot</h3>
+                    <div class="info-box" id="task-snapshot"></div>
+                </div>
+
+                <div class="info-section">
+                    <h3>Related Apps</h3>
+                    <div class="info-box" id="task-related-apps"></div>
+                </div>
+
+                <div class="info-section">
+                    <h3>Configuration</h3>
+                    <div class="info-box" id="task-config"></div>
+                </div>
+
+                <div class="info-section">
+                    <h3>Evaluator</h3>
+                    <div class="info-box" id="task-evaluator"></div>
+                </div>
+
+                <div class="info-section">
+                    <h3>Model Pass Rate</h3>
+                    <div class="info-box" id="task-model-pass-rate"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Screenshot Modal -->
+        <div id="screenshot-modal" class="screenshot-modal">
+            <div class="screenshot-modal-content">
+                <span class="screenshot-close">&times;</span>
+                <div class="screenshot-header">
+                    <div class="screenshot-title-section">
+                        <h3 id="screenshot-title">Screenshot</h3>
+                        <span id="screenshot-step-info"></span>
+                    </div>
+                    <div class="screenshot-controls">
+                        <label class="opacity-slider-label">
+                            <span>Overlay Opacity:</span>
+                            <input type="range" id="overlay-opacity-slider" class="opacity-slider" min="0" max="100"
+                                value="100">
+                            <span id="opacity-value">100%</span>
+                        </label>
+                        <div class="zoom-controls">
+                            <button id="zoom-out-btn" class="zoom-btn" title="Zoom Out (-)">−</button>
+                            <span id="zoom-level" class="zoom-level">100%</span>
+                            <button id="zoom-in-btn" class="zoom-btn" title="Zoom In (+)">+</button>
+                            <button id="zoom-reset-btn" class="zoom-btn" title="Reset Zoom">Reset</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="screenshot-container">
+                    <button id="screenshot-prev" class="screenshot-nav-btn screenshot-nav-left"
+                        title="Previous step (←)">‹</button>
+                    <div class="screenshot-image-wrapper">
+                        <canvas id="screenshot-canvas"></canvas>
+                        <img id="screenshot-image" src="" alt="Screenshot" style="display: none;">
+                        <div id="screenshot-loading" class="screenshot-loading">Loading...</div>
+                    </div>
+                    <button id="screenshot-next" class="screenshot-nav-btn screenshot-nav-right"
+                        title="Next step (→)">›</button>
+                </div>
+                <!-- Action Info Panel -->
+                <div id="action-info-panel" class="action-info-panel" style="display: none;">
+                    <div class="action-type-badge" id="action-type-badge"></div>
+                    <div class="action-content" id="action-content"></div>
+                    <button id="screenshot-toggle" class="screenshot-toggle-btn" title="Toggle Before/After">
+                        <span id="screenshot-toggle-text">After</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/animations.js"></script>
+    <script src="js/fileManager.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/analyzer.js"></script>
+    <script src="js/main.js"></script>
+</body>
+
+</html>
+
