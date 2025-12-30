@@ -27,24 +27,80 @@ let originalCanvasSize = { width: 0, height: 0 };
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-    setupEventListeners();
-    initScreenshotModal();
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/7fd68ed9-e1c9-4c80-b5ab-135c80385bda',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.js:29',message:'DOMContentLoaded fired',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    try {
+        setupEventListeners();
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/7fd68ed9-e1c9-4c80-b5ab-135c80385bda',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.js:35',message:'setupEventListeners completed successfully',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+    } catch (error) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/7fd68ed9-e1c9-4c80-b5ab-135c80385bda',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.js:37',message:'ERROR in setupEventListeners',data:{error:error.message,stack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        console.error('Error in setupEventListeners:', error);
+    }
+    try {
+        initScreenshotModal();
+    } catch (error) {
+        console.error('Error in initScreenshotModal:', error);
+    }
+});
+
+// Global error handler
+window.addEventListener('error', (event) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/7fd68ed9-e1c9-4c80-b5ab-135c80385bda',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.js:48',message:'Global JavaScript error',data:{message:event.message,filename:event.filename,lineno:event.lineno},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
 });
 
 // Setup event listeners
 function setupEventListeners() {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/7fd68ed9-e1c9-4c80-b5ab-135c80385bda',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.js:35',message:'setupEventListeners called',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
     // File input for folder selection
     const fileInput = document.getElementById('folder-input');
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/7fd68ed9-e1c9-4c80-b5ab-135c80385bda',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.js:39',message:'fileInput element lookup',data:{found:!!fileInput,id:'folder-input'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     if (fileInput) {
         fileInput.addEventListener('change', handleFolderSelection);
     }
     
     // Browse button triggers file input
     const browseBtn = document.getElementById('browse-btn');
+    // #region agent log
+    console.log('[DEBUG] browseBtn lookup:', !!browseBtn, 'fileInput:', !!fileInput);
+    fetch('http://127.0.0.1:7242/ingest/7fd68ed9-e1c9-4c80-b5ab-135c80385bda',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.js:46',message:'browseBtn element lookup',data:{found:!!browseBtn,fileInputFound:!!fileInput,id:'browse-btn'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     if (browseBtn) {
         browseBtn.addEventListener('click', () => {
+            // #region agent log
+            console.log('[DEBUG] browseBtn clicked, fileInput:', !!fileInput, fileInput);
+            fetch('http://127.0.0.1:7242/ingest/7fd68ed9-e1c9-4c80-b5ab-135c80385bda',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.js:50',message:'browseBtn click handler fired',data:{fileInputExists:!!fileInput},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
+            // #region agent log
+            console.log('[DEBUG] Before fileInput.click(), fileInput:', fileInput);
+            fetch('http://127.0.0.1:7242/ingest/7fd68ed9-e1c9-4c80-b5ab-135c80385bda',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.js:52',message:'Before fileInput.click()',data:{fileInputType:fileInput?.type,fileInputDisplay:fileInput?.style?.display},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
             fileInput?.click();
+            // #region agent log
+            console.log('[DEBUG] After fileInput.click()');
+            fetch('http://127.0.0.1:7242/ingest/7fd68ed9-e1c9-4c80-b5ab-135c80385bda',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.js:55',message:'After fileInput.click()',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
         });
+        // #region agent log
+        console.log('[DEBUG] browseBtn click listener attached');
+        fetch('http://127.0.0.1:7242/ingest/7fd68ed9-e1c9-4c80-b5ab-135c80385bda',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.js:58',message:'browseBtn click listener attached',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+    } else {
+        // #region agent log
+        console.error('[DEBUG] browseBtn NOT FOUND');
+        fetch('http://127.0.0.1:7242/ingest/7fd68ed9-e1c9-4c80-b5ab-135c80385bda',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.js:60',message:'browseBtn NOT FOUND',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
     }
     
     // Drag and drop zone
@@ -868,55 +924,70 @@ async function loadScreenshot(trajectoryType, stepIndex) {
             img.onload = () => {
                 loading.style.display = 'none';
                 
-                const maxWidth = window.innerWidth * 0.85;
-                const maxHeight = window.innerHeight * 0.7;
-                
-                let displayWidth = img.naturalWidth;
-                let displayHeight = img.naturalHeight;
-                
-                const scaleX = maxWidth / displayWidth;
-                const scaleY = maxHeight / displayHeight;
-                const scale = Math.min(scaleX, scaleY, 1);
-                
-                displayWidth = Math.floor(displayWidth * scale);
-                displayHeight = Math.floor(displayHeight * scale);
-                
-                canvas.width = displayWidth;
-                canvas.height = displayHeight;
-                canvas.style.display = 'block';
-                
-                animationState.imageWidth = img.naturalWidth;
-                animationState.imageHeight = img.naturalHeight;
-                animationState.currentAction = actionData;
-                animationState.dragEnd = dragEndData;
-                animationState.currentImage = img;
-                animationState.displayWidth = displayWidth;
-                animationState.displayHeight = displayHeight;
-                
-                // Store original size for fullscreen toggle
-                originalCanvasSize.width = displayWidth;
-                originalCanvasSize.height = displayHeight;
-                
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, displayWidth, displayHeight);
-                
-                if (stepIndex === 0 || !actionData) {
-                    updateActionInfoPanel(null, null);
-                    if (toggleBtn) {
-                        toggleBtn.style.display = 'none';
+                // Use requestAnimationFrame to ensure DOM is laid out
+                requestAnimationFrame(() => {
+                    // Get the actual container dimensions after layout
+                    const container = document.querySelector('.screenshot-container');
+                    const wrapper = document.querySelector('.screenshot-image-wrapper');
+                    
+                    // Calculate available space (account for nav buttons ~120px total and padding)
+                    let availableWidth = window.innerWidth * 0.85;
+                    let availableHeight = window.innerHeight * 0.7;
+                    
+                    if (container && wrapper) {
+                        // Use actual container dimensions if available
+                        availableWidth = Math.min(container.clientWidth - 120, availableWidth);
+                        availableHeight = Math.min(wrapper.clientHeight || availableHeight, availableHeight);
                     }
-                } else {
-                    document.getElementById('screenshot-image').src = data.screenshot;
-                    startOverlayAnimation(canvas, img);
-                    updateActionInfoPanel(actionData, dragEndData);
-                    if (toggleBtn) {
-                        toggleBtn.style.display = 'block';
-                        const toggleText = document.getElementById('screenshot-toggle-text');
-                        if (toggleText) {
-                            toggleText.textContent = currentScreenshotData.beforeAfter === "before" ? "Before" : "After";
+                    
+                    let displayWidth = img.naturalWidth;
+                    let displayHeight = img.naturalHeight;
+                    
+                    // Scale down if needed to fit within available space
+                    const scaleX = availableWidth / displayWidth;
+                    const scaleY = availableHeight / displayHeight;
+                    const scale = Math.min(scaleX, scaleY, 1);
+                    
+                    displayWidth = Math.floor(displayWidth * scale);
+                    displayHeight = Math.floor(displayHeight * scale);
+                    
+                    canvas.width = displayWidth;
+                    canvas.height = displayHeight;
+                    canvas.style.display = 'block';
+                    
+                    animationState.imageWidth = img.naturalWidth;
+                    animationState.imageHeight = img.naturalHeight;
+                    animationState.currentAction = actionData;
+                    animationState.dragEnd = dragEndData;
+                    animationState.currentImage = img;
+                    animationState.displayWidth = displayWidth;
+                    animationState.displayHeight = displayHeight;
+                    
+                    // Store original size for fullscreen toggle
+                    originalCanvasSize.width = displayWidth;
+                    originalCanvasSize.height = displayHeight;
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, displayWidth, displayHeight);
+                    
+                    if (stepIndex === 0 || !actionData) {
+                        updateActionInfoPanel(null, null);
+                        if (toggleBtn) {
+                            toggleBtn.style.display = 'none';
+                        }
+                    } else {
+                        document.getElementById('screenshot-image').src = data.screenshot;
+                        startOverlayAnimation(canvas, img);
+                        updateActionInfoPanel(actionData, dragEndData);
+                        if (toggleBtn) {
+                            toggleBtn.style.display = 'block';
+                            const toggleText = document.getElementById('screenshot-toggle-text');
+                            if (toggleText) {
+                                toggleText.textContent = currentScreenshotData.beforeAfter === "before" ? "Before" : "After";
+                            }
                         }
                     }
-                }
+                });
             };
             
             img.onerror = () => {
@@ -1034,7 +1105,6 @@ function initScreenshotModal() {
     
     // Add click handler for fullscreen toggle
     const canvas = document.getElementById('screenshot-canvas');
-    const wrapper = document.querySelector('.screenshot-image-wrapper');
     
     if (canvas && wrapper) {
         canvas.addEventListener('click', (e) => {

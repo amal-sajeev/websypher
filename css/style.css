@@ -1093,6 +1093,9 @@ body {
     flex-shrink: 0;
     transition: all 0.3s ease;
     cursor: zoom-in;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
 }
 
 .screenshot-fullscreen #screenshot-canvas {
