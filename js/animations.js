@@ -105,3 +105,4 @@ window.initMatrixBackground = initMatrixBackground;
 window.applyGlitchEffect = applyGlitchEffect;
 
 
+

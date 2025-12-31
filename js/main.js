@@ -43,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     try {
         initScreenshotModal();
+        initCriterion9Modal();
     } catch (error) {
         console.error('Error in initScreenshotModal:', error);
     }
@@ -368,6 +369,16 @@ function displayAnalysisResults(results) {
         
         const card = document.createElement('div');
         card.className = `result-card ${status}`;
+        
+        // Make Criterion 9 card clickable if there are mismatches
+        if (criterion.key === '9_png_xml_match' && result.mismatches && result.mismatches.length > 0) {
+            card.style.cursor = 'pointer';
+            card.title = 'Click to view mismatch details';
+            card.addEventListener('click', () => {
+                openCriterion9DetailsModal(result.mismatches);
+            });
+        }
+        
         card.innerHTML = `
             <div class="status-badge ${badgeClass}">${badgeClass.toUpperCase()}</div>
             <h3>${criterion.name}</h3>
@@ -1026,6 +1037,86 @@ function navigateScreenshot(direction) {
     loadScreenshot(currentScreenshotData.trajectoryType, newIndex);
 }
 
+// Criterion 9 Mismatch Details Modal
+function openCriterion9DetailsModal(mismatches) {
+    const modal = document.getElementById('criterion9-modal');
+    const mismatchList = document.getElementById('criterion9-mismatch-list');
+    
+    if (!modal || !mismatchList) return;
+    
+    // Clear previous content
+    mismatchList.innerHTML = '';
+    
+    // Group mismatches by type for better organization
+    const sftMismatches = mismatches.filter(m => m.path === 'SFT');
+    const annotatorMismatches = mismatches.filter(m => m.path.startsWith('annotator_'));
+    const modelMismatches = mismatches.filter(m => !m.path.startsWith('annotator_') && m.path !== 'SFT');
+    
+    // Build HTML for mismatch list
+    let html = '';
+    
+    if (sftMismatches.length > 0) {
+        html += '<div class="mismatch-group"><h4>SFT</h4><ul class="mismatch-list">';
+        sftMismatches.forEach(mismatch => {
+            const diff = mismatch.png - mismatch.xml;
+            const diffText = diff > 0 ? `+${diff} PNGs` : `${diff} PNGs`;
+            html += `<li class="mismatch-item">
+                <div class="mismatch-path"><strong>${escapeHtml(mismatch.path)}</strong></div>
+                <div class="mismatch-counts">
+                    <span class="count-badge png-count">${mismatch.png} PNGs</span>
+                    <span class="count-badge xml-count">${mismatch.xml} XMLs</span>
+                    <span class="count-badge diff-count">Difference: ${diffText}</span>
+                </div>
+            </li>`;
+        });
+        html += '</ul></div>';
+    }
+    
+    if (annotatorMismatches.length > 0) {
+        html += '<div class="mismatch-group"><h4>Annotators</h4><ul class="mismatch-list">';
+        annotatorMismatches.forEach(mismatch => {
+            const diff = mismatch.png - mismatch.xml;
+            const diffText = diff > 0 ? `+${diff} PNGs` : `${diff} PNGs`;
+            html += `<li class="mismatch-item">
+                <div class="mismatch-path"><strong>${escapeHtml(mismatch.path)}</strong></div>
+                <div class="mismatch-counts">
+                    <span class="count-badge png-count">${mismatch.png} PNGs</span>
+                    <span class="count-badge xml-count">${mismatch.xml} XMLs</span>
+                    <span class="count-badge diff-count">Difference: ${diffText}</span>
+                </div>
+            </li>`;
+        });
+        html += '</ul></div>';
+    }
+    
+    if (modelMismatches.length > 0) {
+        html += '<div class="mismatch-group"><h4>Model Runs</h4><ul class="mismatch-list">';
+        modelMismatches.forEach(mismatch => {
+            const diff = mismatch.png - mismatch.xml;
+            const diffText = diff > 0 ? `+${diff} PNGs` : `${diff} PNGs`;
+            html += `<li class="mismatch-item">
+                <div class="mismatch-path"><strong>${escapeHtml(mismatch.path)}</strong></div>
+                <div class="mismatch-counts">
+                    <span class="count-badge png-count">${mismatch.png} PNGs</span>
+                    <span class="count-badge xml-count">${mismatch.xml} XMLs</span>
+                    <span class="count-badge diff-count">Difference: ${diffText}</span>
+                </div>
+            </li>`;
+        });
+        html += '</ul></div>';
+    }
+    
+    mismatchList.innerHTML = html;
+    modal.style.display = 'block';
+}
+
+function closeCriterion9DetailsModal() {
+    const modal = document.getElementById('criterion9-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
 function closeScreenshot() {
     const modal = document.getElementById('screenshot-modal');
     if (modal) {
@@ -1145,6 +1236,33 @@ function initScreenshotModal() {
             navigateScreenshot(-1);
         } else if (e.key === 'ArrowRight') {
             navigateScreenshot(1);
+        }
+    });
+}
+
+// Initialize Criterion 9 modal handlers
+function initCriterion9Modal() {
+    const modal = document.getElementById('criterion9-modal');
+    const closeBtn = document.querySelector('.criterion9-close');
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeCriterion9DetailsModal);
+    }
+    
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeCriterion9DetailsModal();
+            }
+        });
+    }
+    
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('criterion9-modal');
+            if (modal && modal.style.display === 'block') {
+                closeCriterion9DetailsModal();
+            }
         }
     });
 }
