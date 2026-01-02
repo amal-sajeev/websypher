@@ -107,8 +107,8 @@ function parsePyautoguiAction(actionStr) {
         return result;
     }
     
-    // Time sleep
-    const sleepMatch = actionStr.match(/time\.sleep\(([\d.]+)\)/);
+    // Time sleep (supports both time.sleep and pg.sleep)
+    const sleepMatch = actionStr.match(/(?:time|pg)\.sleep\(([\d.]+)\)/);
     if (sleepMatch) {
         result.action_type = "sleep";
         try {
@@ -282,6 +282,9 @@ window.utils = {
     parseEvaluationScore,
     getTaskInfo
 };
+
+
+
 
 
 
