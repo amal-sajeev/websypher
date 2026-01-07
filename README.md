@@ -115,7 +115,7 @@ WebSypher performs **11 comprehensive validation checks**:
 
 | # | Criterion | Description |
 |---|-----------|-------------|
-| **1** | SFT Step Count | Verifies SFT has fewer steps than all positive runs (score = 1.0) |
+| **1** | SFT Step Count | Verifies SFT has the least steps among all SFT and Annotators with positive results (score = 1.0) |
 | **2** | Evaluation Scores | Checks SFT and at least one annotator score = 1.0 |
 | **3** | Annotator Zero Score | Validates annotator 2 or 3 has score = 0 |
 | **4** | Notebook Assistant Cells | Reviews assistant step descriptions quality |
@@ -338,6 +338,11 @@ Same as the original Sypher project.
 [⬆ Back to Top](#websypher)
 
 </div>
+
+
+
+
+
 
 
 

@@ -70,16 +70,22 @@ async function extractNotebookAssistantCells(notebookFile) {
 }
 
 /**
- * Criterion 1: Does SFT have the lowest number of steps?
+ * Criterion 1: Does SFT have the lowest number of steps among all SFT and Annotators with positive results?
  */
 async function checkCriterion1SFTStepCount(modelName = null) {
     const result = {
         passed: false,
         sft_steps: 0,
+        sft_score: null,
         annotator_steps: {},
-        positive_run_steps: {},
+        annotator_scores: {},
+        positive_steps: {},
         message: ""
     };
+    
+    // Find task ID for score lookup
+    const taskJSON = await utils.findTaskJSON();
+    const taskId = taskJSON ? taskJSON.taskId : null;
     
     // Find SFT trajectory
     const sftTrajPath = 'SFT/Trajectory and Screenshot';
@@ -93,7 +99,15 @@ async function checkCriterion1SFTStepCount(modelName = null) {
     const sftSteps = await fileManager.readFileAsJSONL(sftTrajFile);
     result.sft_steps = sftSteps.length;
     
-    // Find annotator trajectories
+    // Get SFT score
+    const sftDir = 'SFT';
+    const sftScoreFile = utils.findEvaluationScore(sftDir, taskId);
+    if (sftScoreFile) {
+        const scoreText = await fileManager.readFileAsText(sftScoreFile);
+        result.sft_score = utils.parseEvaluationScore(scoreText);
+    }
+    
+    // Find annotator trajectories and their scores
     let annotatorRoot = 'Annotator Trajectory';
     if (!fileManager.directoryExists(annotatorRoot)) {
         for (const altName of ['Annotator_trajectory', 'Annotator trajectory']) {
@@ -105,6 +119,7 @@ async function checkCriterion1SFTStepCount(modelName = null) {
     }
     
     const annotatorSteps = {};
+    const annotatorScores = {};
     for (const idx of [1, 2, 3]) {
         for (const variant of [
             `annotator${idx}`,
@@ -113,84 +128,73 @@ async function checkCriterion1SFTStepCount(modelName = null) {
             `annotaor${idx}`,
             `annotator${idx.toString().padStart(2, '0')}`
         ]) {
-            const annotDir = `${annotatorRoot}/${variant}/Trajectory and Screenshot`;
+            const annotDir = `${annotatorRoot}/${variant}`;
             if (fileManager.directoryExists(annotDir)) {
-                const trajFile = utils.findTrajectoryFile(annotDir);
-                if (trajFile) {
-                    const steps = await fileManager.readFileAsJSONL(trajFile);
-                    annotatorSteps[`annotator_${idx}`] = steps.length;
-                    break;
+                const trajDir = `${annotDir}/Trajectory and Screenshot`;
+                if (fileManager.directoryExists(trajDir)) {
+                    const trajFile = utils.findTrajectoryFile(trajDir);
+                    if (trajFile) {
+                        const steps = await fileManager.readFileAsJSONL(trajFile);
+                        annotatorSteps[`annotator_${idx}`] = steps.length;
+                    }
                 }
+                
+                // Get annotator score
+                const scoreFile = fileManager.getFileFromTree(`${annotDir}/evaluation_score.txt`);
+                if (scoreFile) {
+                    const scoreText = await fileManager.readFileAsText(scoreFile);
+                    annotatorScores[`annotator_${idx}`] = utils.parseEvaluationScore(scoreText);
+                }
+                break;
             }
         }
     }
     
     result.annotator_steps = annotatorSteps;
+    result.annotator_scores = annotatorScores;
     
-    // Get positive run step counts (runs with score = 1.0)
-    const positiveRunSteps = {};
-    if (modelName && fileManager.directoryExists(modelName)) {
-        for (let i = 1; i < 17; i++) {
-            for (const runName of [`run_${i.toString().padStart(2, '0')}`, `run_${i}`]) {
-                const runDir = `${modelName}/${runName}`;
-                if (fileManager.directoryExists(runDir)) {
-                    let trajDir = `${runDir}/Trajectory and Screenshot`;
-                    if (!fileManager.directoryExists(trajDir)) {
-                        trajDir = runDir;
-                    }
-                    
-                    // Check if this run has score = 1.0
-                    const resultFile = fileManager.getFileFromTree(`${trajDir}/result.txt`);
-                    if (resultFile) {
-                        const scoreText = await fileManager.readFileAsText(resultFile);
-                        const score = utils.parseEvaluationScore(scoreText);
-                        if (score !== null && Math.abs(score - 1.0) < 0.01) {
-                            // This is a positive run, get its trajectory step count
-                            const trajFile = utils.findTrajectoryFile(trajDir);
-                            if (trajFile) {
-                                const steps = await fileManager.readFileAsJSONL(trajFile);
-                                positiveRunSteps[runName] = steps.length;
-                            }
-                        }
-                    }
-                    break;
-                }
+    // Collect step counts only from SFT and Annotators with positive results (score = 1.0)
+    const positiveSteps = {};
+    
+    // Add SFT if it has positive result
+    if (result.sft_score !== null && Math.abs(result.sft_score - 1.0) < 0.01) {
+        positiveSteps['SFT'] = result.sft_steps;
+    }
+    
+    // Add annotators with positive results
+    for (const [annotatorKey, score] of Object.entries(annotatorScores)) {
+        if (score !== null && Math.abs(score - 1.0) < 0.01) {
+            const steps = annotatorSteps[annotatorKey];
+            if (steps !== undefined) {
+                positiveSteps[annotatorKey] = steps;
             }
         }
     }
     
-    result.positive_run_steps = positiveRunSteps;
+    result.positive_steps = positiveSteps;
     
-    // Compare SFT steps against all positive runs (not all runs)
-    const allComparisonSteps = [];
-    
-    // Add annotator steps
-    Object.values(annotatorSteps).forEach(steps => {
-        allComparisonSteps.push(steps);
-    });
-    
-    // Add positive run steps
-    Object.values(positiveRunSteps).forEach(steps => {
-        allComparisonSteps.push(steps);
-    });
-    
-    if (allComparisonSteps.length === 0) {
-        result.message = "No annotator trajectories or positive runs found";
+    // Check if SFT has the least steps among all positive results
+    if (Object.keys(positiveSteps).length === 0) {
+        result.message = "No SFT or Annotators with positive results (score = 1.0) found";
         return result;
     }
     
-    const minComparisonSteps = Math.min(...allComparisonSteps);
-    result.passed = result.sft_steps <= minComparisonSteps;
+    // SFT must be in the positive results to pass
+    if (!positiveSteps.hasOwnProperty('SFT')) {
+        result.message = `SFT does not have a positive result (score = ${result.sft_score}). Only comparing among positive results.`;
+        return result;
+    }
+    
+    const allPositiveSteps = Object.values(positiveSteps);
+    const minPositiveSteps = Math.min(...allPositiveSteps);
+    result.passed = result.sft_steps <= minPositiveSteps;
     
     const comparisonDetails = [];
-    if (Object.keys(annotatorSteps).length > 0) {
-        comparisonDetails.push(`annotators: ${JSON.stringify(annotatorSteps)}`);
-    }
-    if (Object.keys(positiveRunSteps).length > 0) {
-        comparisonDetails.push(`positive runs: ${JSON.stringify(positiveRunSteps)}`);
+    for (const [key, steps] of Object.entries(positiveSteps)) {
+        comparisonDetails.push(`${key}: ${steps} steps`);
     }
     
-    result.message = `SFT has ${result.sft_steps} steps, ${comparisonDetails.join(', ')}. ${result.passed ? 'PASS' : 'FAIL'}`;
+    result.message = `SFT has ${result.sft_steps} steps. Positive results: ${comparisonDetails.join(', ')}. ${result.passed ? 'PASS' : 'FAIL'}`;
     
     return result;
 }

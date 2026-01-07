@@ -794,8 +794,8 @@ function exportTrajectoryComparison() {
     ['sft', 'annotator_1', 'annotator_2', 'annotator_3'].forEach(traj => {
         text += `\n${traj.toUpperCase().replace('_', ' ')}\n`;
         text += '-'.repeat(50) + '\n';
-        (currentTrajectoryData[traj] || []).forEach((action, idx) => {
-            text += `${idx + 1}: ${action}\n`;
+        (currentTrajectoryData[traj] || []).forEach((action) => {
+            text += `${action}\n`;
         });
     });
     
