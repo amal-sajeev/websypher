@@ -530,8 +530,8 @@ async function checkCriterion6RunScoreAverage(modelName) {
     
     if (result.scores.length > 0) {
         result.average = result.scores.reduce((a, b) => a + b, 0) / result.scores.length;
-        result.passed = result.average < 1.0;
-        result.message = `Average: ${result.average.toFixed(3)} from ${result.scores.length} runs. ${result.passed ? 'PASS' : 'FAIL'}`;
+        result.passed = result.average < 0.5;
+        result.message = `Average: ${result.average.toFixed(3)} from ${result.scores.length} runs. ${result.passed ? 'PASS (< 0.5)' : 'FAIL (>= 0.5)'}`;
     } else {
         result.message = "No result.txt files found";
     }
@@ -1040,6 +1040,270 @@ async function checkCriterion11UnrequiredFiles(modelName = null) {
 }
 
 /**
+ * Criterion 12: Does the task JSON match the metadata JSON in the .ipynb files?
+ */
+async function checkCriterion12NotebookMetadataMatch() {
+    const result = {
+        passed: true,
+        task_json_found: false,
+        notebooks_checked: {},
+        mismatches: [],
+        message: ""
+    };
+    
+    // Find and read the task JSON file
+    const taskJSONInfo = await utils.findTaskJSON();
+    if (!taskJSONInfo) {
+        result.passed = false;
+        result.message = "Task JSON file not found";
+        return result;
+    }
+    
+    const taskJSON = await fileManager.readFileAsJSON(taskJSONInfo.file);
+    if (!taskJSON) {
+        result.passed = false;
+        result.message = "Failed to parse task JSON file";
+        return result;
+    }
+    result.task_json_found = true;
+    
+    // Helper function to extract JSON from notebook metadata cell
+    async function extractMetadataFromNotebook(notebookFile) {
+        try {
+            const notebookData = await fileManager.readFileAsJSON(notebookFile);
+            if (!notebookData || !notebookData.cells || notebookData.cells.length === 0) {
+                return { error: "Invalid notebook structure" };
+            }
+            
+            // Find the metadata cell (usually cell 0 with [metadata] marker)
+            const metadataCell = notebookData.cells[0];
+            if (!metadataCell) {
+                return { error: "No cells in notebook" };
+            }
+            
+            // Get cell source
+            let source = metadataCell.source || [];
+            let text = '';
+            if (Array.isArray(source)) {
+                text = source.join('');
+            } else if (typeof source === 'string') {
+                text = source;
+            }
+            
+            // Check if this is a metadata cell
+            if (!text.includes('[metadata]')) {
+                return { error: "First cell is not a metadata cell" };
+            }
+            
+            // Extract JSON from markdown code block
+            const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+            if (!jsonMatch) {
+                return { error: "No JSON code block found in metadata cell" };
+            }
+            
+            try {
+                const extractedJSON = JSON.parse(jsonMatch[1]);
+                return { json: extractedJSON };
+            } catch (e) {
+                return { error: `Failed to parse JSON in metadata cell: ${e.message}` };
+            }
+        } catch (e) {
+            return { error: `Failed to read notebook: ${e.message}` };
+        }
+    }
+    
+    // Helper function to compare two JSON objects deeply
+    function compareJSON(taskJSON, notebookJSON, path = '') {
+        const differences = [];
+        
+        // Get all keys from both objects
+        const allKeys = new Set([...Object.keys(taskJSON || {}), ...Object.keys(notebookJSON || {})]);
+        
+        for (const key of allKeys) {
+            const currentPath = path ? `${path}.${key}` : key;
+            const taskValue = taskJSON?.[key];
+            const notebookValue = notebookJSON?.[key];
+            
+            // Check if key exists in both
+            if (!(key in (taskJSON || {}))) {
+                differences.push({
+                    path: currentPath,
+                    type: 'missing_in_task',
+                    notebook_value: notebookValue
+                });
+                continue;
+            }
+            
+            if (!(key in (notebookJSON || {}))) {
+                differences.push({
+                    path: currentPath,
+                    type: 'missing_in_notebook',
+                    task_value: taskValue
+                });
+                continue;
+            }
+            
+            // Compare values
+            const taskType = typeof taskValue;
+            const notebookType = typeof notebookValue;
+            
+            if (taskType !== notebookType) {
+                differences.push({
+                    path: currentPath,
+                    type: 'type_mismatch',
+                    task_type: taskType,
+                    notebook_type: notebookType
+                });
+                continue;
+            }
+            
+            if (taskValue === null && notebookValue === null) {
+                continue;
+            }
+            
+            if (Array.isArray(taskValue) && Array.isArray(notebookValue)) {
+                // Compare arrays by serializing them
+                if (JSON.stringify(taskValue) !== JSON.stringify(notebookValue)) {
+                    differences.push({
+                        path: currentPath,
+                        type: 'value_mismatch',
+                        task_value: taskValue,
+                        notebook_value: notebookValue
+                    });
+                }
+            } else if (taskType === 'object' && taskValue !== null) {
+                // Recursively compare nested objects
+                const nestedDiffs = compareJSON(taskValue, notebookValue, currentPath);
+                differences.push(...nestedDiffs);
+            } else {
+                // Compare primitive values
+                if (taskValue !== notebookValue) {
+                    differences.push({
+                        path: currentPath,
+                        type: 'value_mismatch',
+                        task_value: taskValue,
+                        notebook_value: notebookValue
+                    });
+                }
+            }
+        }
+        
+        return differences;
+    }
+    
+    // Check SFT notebook
+    const sftColab = 'SFT/Colab';
+    if (fileManager.directoryExists(sftColab)) {
+        const notebooks = fileManager.findFilesInTree(sftColab, '*.ipynb');
+        if (notebooks.length > 0) {
+            const notebookFile = notebooks[0];
+            const extracted = await extractMetadataFromNotebook(notebookFile);
+            
+            if (extracted.error) {
+                result.notebooks_checked.sft = { error: extracted.error };
+                result.mismatches.push({
+                    source: 'SFT',
+                    notebook: notebookFile.name,
+                    error: extracted.error
+                });
+                result.passed = false;
+            } else {
+                const differences = compareJSON(taskJSON, extracted.json);
+                result.notebooks_checked.sft = {
+                    notebook: notebookFile.name,
+                    matches: differences.length === 0,
+                    difference_count: differences.length
+                };
+                
+                if (differences.length > 0) {
+                    result.mismatches.push({
+                        source: 'SFT',
+                        notebook: notebookFile.name,
+                        differences: differences
+                    });
+                    result.passed = false;
+                }
+            }
+        }
+    }
+    
+    // Check annotator notebooks
+    let annotatorRoot = 'Annotator Trajectory';
+    if (!fileManager.directoryExists(annotatorRoot)) {
+        for (const altName of ['Annotator_trajectory', 'Annotator trajectory']) {
+            if (fileManager.directoryExists(altName)) {
+                annotatorRoot = altName;
+                break;
+            }
+        }
+    }
+    
+    for (const idx of [1, 2, 3]) {
+        for (const variant of [
+            `annotator${idx}`,
+            `annotator_${idx}`,
+            `annotaor_${idx}`,
+            `annotaor${idx}`,
+            `annotator${idx.toString().padStart(2, '0')}`
+        ]) {
+            const annotDir = `${annotatorRoot}/${variant}`;
+            if (fileManager.directoryExists(annotDir)) {
+                const colabDir = `${annotDir}/Colab`;
+                if (fileManager.directoryExists(colabDir)) {
+                    const notebooks = fileManager.findFilesInTree(colabDir, '*.ipynb');
+                    if (notebooks.length > 0) {
+                        const notebookFile = notebooks[0];
+                        const key = `annotator_${idx}`;
+                        const extracted = await extractMetadataFromNotebook(notebookFile);
+                        
+                        if (extracted.error) {
+                            result.notebooks_checked[key] = { error: extracted.error };
+                            result.mismatches.push({
+                                source: key,
+                                notebook: notebookFile.name,
+                                error: extracted.error
+                            });
+                            result.passed = false;
+                        } else {
+                            const differences = compareJSON(taskJSON, extracted.json);
+                            result.notebooks_checked[key] = {
+                                notebook: notebookFile.name,
+                                matches: differences.length === 0,
+                                difference_count: differences.length
+                            };
+                            
+                            if (differences.length > 0) {
+                                result.mismatches.push({
+                                    source: key,
+                                    notebook: notebookFile.name,
+                                    differences: differences
+                                });
+                                result.passed = false;
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+    
+    // Generate summary message
+    const notebooksChecked = Object.keys(result.notebooks_checked).length;
+    if (notebooksChecked === 0) {
+        result.passed = false;
+        result.message = "No notebooks found to check";
+    } else if (result.passed) {
+        result.message = `All ${notebooksChecked} notebook(s) match the task JSON. PASS`;
+    } else {
+        const mismatchCount = result.mismatches.length;
+        result.message = `${mismatchCount} notebook(s) have mismatches with task JSON. FAIL`;
+    }
+    
+    return result;
+}
+
+/**
  * Get all assistant cells from all notebooks for comparison view
  */
 async function getNotebookAssistantCellsForComparison(taskId = null) {
@@ -1250,7 +1514,8 @@ async function analyzeTaskFolder(checkPNGXML = false) {
         criterion8,
         criterion9,
         criterion10,
-        criterion11
+        criterion11,
+        criterion12
     ] = await Promise.all([
         checkCriterion1SFTStepCount(modelName),
         checkCriterion2EvaluationScores(taskId || ''),
@@ -1262,7 +1527,8 @@ async function analyzeTaskFolder(checkPNGXML = false) {
         checkCriterion8MissingResultFiles(modelName),
         checkCriterion9PNGXMLMatch(checkPNGXML),
         checkCriterion10StepCountMatch(),
-        checkCriterion11UnrequiredFiles(modelName)
+        checkCriterion11UnrequiredFiles(modelName),
+        checkCriterion12NotebookMetadataMatch()
     ]);
     
     results.criteria['1_sft_step_count'] = criterion1;
@@ -1276,6 +1542,7 @@ async function analyzeTaskFolder(checkPNGXML = false) {
     results.criteria['9_png_xml_match'] = criterion9;
     results.criteria['10_step_count_match'] = criterion10;
     results.criteria['11_unrequired_files'] = criterion11;
+    results.criteria['12_notebook_metadata_match'] = criterion12;
     
     return results;
 }

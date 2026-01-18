@@ -331,12 +331,13 @@ function displayAnalysisResults(results) {
         { key: '3_annotator_zero', name: 'Criterion 3: Annotator Zero Score', description: 'Is annotator 2 or 3 score equal to 0?' },
         { key: '4_notebook_assistant', name: 'Criterion 4: Notebook Assistant Cells', description: 'Are assistant descriptions properly written?', review: true },
         { key: '5_duplicate_detection', name: 'Criterion 5: Duplicate Detection', description: 'Are any trajectories copies?', review: true },
-        { key: '6_run_score_average', name: 'Criterion 6: Run Score Average', description: 'Is average score < 1.0?' },
+        { key: '6_run_score_average', name: 'Criterion 6: Run Score Average', description: 'Is average score < 0.5?' },
         { key: '7_run_folder_count', name: 'Criterion 7: Run Folder Count', description: 'Folder vs result file count' },
         { key: '8_missing_results', name: 'Criterion 8: Missing Result Files', description: 'Are there missing result.txt files?' },
         { key: '9_png_xml_match', name: 'Criterion 9: PNG/XML Match', description: 'Do PNG and XML counts match?' },
         { key: '10_step_count_match', name: 'Criterion 10: Step Count Match', description: 'Do PNG counts match step count + 1 (for final state screenshot)?' },
         { key: '11_unrequired_files', name: 'Criterion 11: Unrequired Files', description: 'Are there any unrequired files in the task folder?' },
+        { key: '12_notebook_metadata_match', name: 'Criterion 12: Notebook Metadata Match', description: 'Does task JSON match notebook metadata?' },
     ];
     
     criteria.forEach(criterion => {
@@ -365,6 +366,41 @@ function displayAnalysisResults(results) {
                 mismatchDetails += `<li><strong>${typeLabel}:</strong> ${escapeHtml(file.path)} <span style="opacity: 0.7; font-size: 0.85em;">(${file.reason})</span></li>`;
             });
             mismatchDetails += '</ul></div>';
+        }
+        
+        // Build notebook metadata mismatch display for Criterion 12
+        if (criterion.key === '12_notebook_metadata_match' && result.mismatches && result.mismatches.length > 0) {
+            mismatchDetails = '<div style="margin-top: 10px; padding: 10px; background: rgba(255,0,0,0.1); border-radius: 4px;">';
+            mismatchDetails += '<strong>Metadata Mismatches:</strong>';
+            result.mismatches.forEach(mismatch => {
+                mismatchDetails += `<div style="margin-top: 8px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">`;
+                mismatchDetails += `<strong>${escapeHtml(mismatch.source)}</strong> (${escapeHtml(mismatch.notebook || 'Unknown')})`;
+                
+                if (mismatch.error) {
+                    mismatchDetails += `<div style="color: #ff6b6b; margin-top: 4px;">Error: ${escapeHtml(mismatch.error)}</div>`;
+                } else if (mismatch.differences && mismatch.differences.length > 0) {
+                    mismatchDetails += '<ul style="margin: 5px 0; padding-left: 20px; max-height: 150px; overflow-y: auto; font-size: 0.85em;">';
+                    mismatch.differences.slice(0, 10).forEach(diff => {
+                        if (diff.type === 'missing_in_task') {
+                            mismatchDetails += `<li><code>${escapeHtml(diff.path)}</code>: missing in task JSON</li>`;
+                        } else if (diff.type === 'missing_in_notebook') {
+                            mismatchDetails += `<li><code>${escapeHtml(diff.path)}</code>: missing in notebook</li>`;
+                        } else if (diff.type === 'type_mismatch') {
+                            mismatchDetails += `<li><code>${escapeHtml(diff.path)}</code>: type mismatch (task: ${diff.task_type}, notebook: ${diff.notebook_type})</li>`;
+                        } else if (diff.type === 'value_mismatch') {
+                            const taskVal = typeof diff.task_value === 'object' ? JSON.stringify(diff.task_value).substring(0, 50) : String(diff.task_value).substring(0, 50);
+                            const notebookVal = typeof diff.notebook_value === 'object' ? JSON.stringify(diff.notebook_value).substring(0, 50) : String(diff.notebook_value).substring(0, 50);
+                            mismatchDetails += `<li><code>${escapeHtml(diff.path)}</code>: value differs</li>`;
+                        }
+                    });
+                    if (mismatch.differences.length > 10) {
+                        mismatchDetails += `<li>... and ${mismatch.differences.length - 10} more differences</li>`;
+                    }
+                    mismatchDetails += '</ul>';
+                }
+                mismatchDetails += '</div>';
+            });
+            mismatchDetails += '</div>';
         }
         
         const card = document.createElement('div');

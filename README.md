@@ -25,7 +25,7 @@
 - **Local File Processing** - Complete privacy and security
 
 ### 📊 **Comprehensive Validation**
-- **11 Validation Criteria** - Automated checks for task folder integrity
+- **12 Validation Criteria** - Automated checks for task folder integrity
 - **Step Count Analysis** - Compare SFT steps against positive runs
 - **Score Verification** - Validate evaluation scores across trajectories
 - **Duplicate Detection** - Identify copied or similar trajectories
@@ -91,7 +91,7 @@ graph LR
 
 1. **Select Task Folder** - Choose a folder containing SFT and annotator trajectories
 2. **Automatic Processing** - WebSypher builds an internal file tree
-3. **Run Analysis** - Click "Analyze" to execute all 11 validation criteria
+3. **Run Analysis** - Click "Analyze" to execute all 12 validation criteria
 4. **Review Results** - Check pass/fail status for each criterion
 5. **Deep Dive** - Use comparison views for detailed analysis
 
@@ -111,7 +111,7 @@ graph LR
 
 ## 📋 Validation Criteria
 
-WebSypher performs **11 comprehensive validation checks**:
+WebSypher performs **12 comprehensive validation checks**:
 
 | # | Criterion | Description |
 |---|-----------|-------------|
@@ -120,12 +120,13 @@ WebSypher performs **11 comprehensive validation checks**:
 | **3** | Annotator Zero Score | Validates annotator 2 or 3 has score = 0 |
 | **4** | Notebook Assistant Cells | Reviews assistant step descriptions quality |
 | **5** | Duplicate Detection | Identifies copied or highly similar trajectories |
-| **6** | Run Score Average | Verifies average model run score < 1.0 |
+| **6** | Run Score Average | Verifies average model run score < 0.5 |
 | **7** | Run Folder Count | Compares folder count vs result file count |
 | **8** | Missing Result Files | Checks all run folders have result.txt |
 | **9** | PNG/XML Match | Validates equal PNG and XML file counts (optional) |
 | **10** | Step Count Match | Verifies PNG count = step count + 1 |
 | **11** | Unrequired Files | Detects unexpected files in task folders |
+| **12** | Notebook Metadata Match | Verifies task JSON matches metadata JSON in SFT and Annotator .ipynb files |
 
 ### Allowed Files in Run Folders
 
@@ -287,7 +288,7 @@ WebSypher/
 ## 📸 Screenshots
 
 ### Validation Results
-View comprehensive validation results with pass/fail indicators for all 11 criteria.
+View comprehensive validation results with pass/fail indicators for all 12 criteria.
 
 ### Trajectory Comparison
 Compare action sequences side-by-side with similarity matrix visualization.
