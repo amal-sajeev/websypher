@@ -16,9 +16,11 @@ let animationState = {
     imageWidth: 0,
     imageHeight: 0,
     overlayOpacity: 1.0,  // 0.0 to 1.0
-    currentImage: null,  // Store the current image for redraws
-    displayWidth: 0,  // Current display width
-    displayHeight: 0  // Current display height
+    overlayScale: 1.0,    // 0.5 to 2.0 (size multiplier)
+    overlayHue: 0,        // 0 to 360 (hue rotation in degrees)
+    currentImage: null,   // Store the current image for redraws
+    displayWidth: 0,      // Current display width
+    displayHeight: 0      // Current display height
 };
 
 // Fullscreen state
@@ -1230,6 +1232,28 @@ function initScreenshotModal() {
         });
     }
     
+    // Size slider
+    const sizeSlider = document.getElementById('overlay-size-slider');
+    const sizeValue = document.getElementById('size-value');
+    if (sizeSlider && sizeValue) {
+        sizeSlider.addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            animationState.overlayScale = value / 100;
+            sizeValue.textContent = `${value}%`;
+        });
+    }
+    
+    // Color (hue) slider
+    const colorSlider = document.getElementById('overlay-color-slider');
+    const colorValue = document.getElementById('color-value');
+    if (colorSlider && colorValue) {
+        colorSlider.addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            animationState.overlayHue = value;
+            colorValue.textContent = `${value}°`;
+        });
+    }
+    
     // Add click handler for fullscreen toggle
     const canvas = document.getElementById('screenshot-canvas');
     
@@ -1441,6 +1465,9 @@ function renderActionOverlay(ctx, canvasWidth, canvasHeight) {
         case 'click':
             drawCrosshair(ctx, action.x * scaleX, action.y * scaleY, 'click');
             break;
+        case 'leftClick':
+            drawCrosshair(ctx, action.x * scaleX, action.y * scaleY, 'leftClick');
+            break;
         case 'doubleClick':
             drawCrosshair(ctx, action.x * scaleX, action.y * scaleY, 'doubleClick');
             break;
@@ -1476,34 +1503,40 @@ function renderActionOverlay(ctx, canvasWidth, canvasHeight) {
 function drawCrosshair(ctx, x, y, type) {
     const phase = animationState.phase;
     const opacity = animationState.overlayOpacity;
-    const pulseSize = 14.4 + Math.sin(phase) * 5.76;
+    const scale = animationState.overlayScale;
+    const hue = animationState.overlayHue;
+    
+    const pulseSize = (14.4 + Math.sin(phase) * 5.76) * scale;
     const pulseAlpha = (0.7 + Math.sin(phase) * 0.3) * opacity;
-    const innerPulse = 8.64 + Math.sin(phase * 1.5) * 2.88;
+    const innerPulse = (8.64 + Math.sin(phase * 1.5) * 2.88) * scale;
     
     let color;
     switch (type) {
         case 'rightClick':
-            color = `rgba(255, 50, 50, ${pulseAlpha})`;
+            color = rotateHue(255, 50, 50, hue, pulseAlpha);
+            break;
+        case 'leftClick':
+            color = rotateHue(0, 255, 65, hue, pulseAlpha);
             break;
         case 'doubleClick':
-            color = `rgba(0, 200, 255, ${pulseAlpha})`;
+            color = rotateHue(0, 200, 255, hue, pulseAlpha);
             break;
         case 'tripleClick':
-            color = `rgba(255, 0, 255, ${pulseAlpha})`;
+            color = rotateHue(255, 0, 255, hue, pulseAlpha);
             break;
         case 'mouseDown':
-            color = `rgba(255, 170, 0, ${pulseAlpha})`;
+            color = rotateHue(255, 170, 0, hue, pulseAlpha);
             break;
         case 'moveTo':
-            color = `rgba(180, 180, 180, ${pulseAlpha})`;
+            color = rotateHue(180, 180, 180, hue, pulseAlpha);
             break;
         default:
-            color = `rgba(0, 255, 65, ${pulseAlpha})`;
+            color = rotateHue(0, 255, 65, hue, pulseAlpha);
     }
     
     ctx.save();
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.8;
+    ctx.lineWidth = 1.8 * scale;
     ctx.lineCap = 'round';
     
     ctx.beginPath();
@@ -1518,14 +1551,14 @@ function drawCrosshair(ctx, x, y, type) {
     
     if (type === 'tripleClick') {
         // Add a third ring for tripleClick to distinguish it
-        const outerPulse = 18 + Math.sin(phase * 0.8) * 4;
+        const outerPulse = (18 + Math.sin(phase * 0.8) * 4) * scale;
         ctx.beginPath();
         ctx.arc(x, y, outerPulse, 0, Math.PI * 2);
         ctx.stroke();
     }
     
     const lineLen = pulseSize * 1.5;
-    const gap = 5.76;
+    const gap = 5.76 * scale;
     
     ctx.beginPath();
     ctx.moveTo(x - lineLen, y);
@@ -1543,11 +1576,11 @@ function drawCrosshair(ctx, x, y, type) {
     
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.arc(x, y, 2.16, 0, Math.PI * 2);
+    ctx.arc(x, y, 2.16 * scale, 0, Math.PI * 2);
     ctx.fill();
     
     ctx.shadowColor = color;
-    ctx.shadowBlur = 10.8 + Math.sin(phase) * 7.2;
+    ctx.shadowBlur = (10.8 + Math.sin(phase) * 7.2) * scale;
     ctx.beginPath();
     ctx.arc(x, y, pulseSize * 0.5, 0, Math.PI * 2);
     ctx.stroke();
@@ -1559,16 +1592,18 @@ function drawDragPath(ctx, startX, startY, endX, endY) {
     const phase = animationState.phase;
     const dashOffset = animationState.dashOffset;
     const opacity = animationState.overlayOpacity;
+    const scale = animationState.overlayScale;
+    const hue = animationState.overlayHue;
     const pulseAlpha = (0.7 + Math.sin(phase) * 0.3) * opacity;
     
-    const color = `rgba(255, 170, 0, ${pulseAlpha})`;
-    const colorSolid = `rgba(255, 170, 0, ${0.8 * opacity})`;
+    const color = rotateHue(255, 170, 0, hue, pulseAlpha);
+    const colorSolid = rotateHue(255, 170, 0, hue, 0.8 * opacity);
     
     ctx.save();
     
     ctx.strokeStyle = colorSolid;
-    ctx.lineWidth = 2.16;
-    ctx.setLineDash([7.2, 6]);
+    ctx.lineWidth = 2.16 * scale;
+    ctx.setLineDash([7.2 * scale, 6 * scale]);
     ctx.lineDashOffset = dashOffset;
     
     ctx.beginPath();
@@ -1579,7 +1614,7 @@ function drawDragPath(ctx, startX, startY, endX, endY) {
     ctx.setLineDash([]);
     
     const angle = Math.atan2(endY - startY, endX - startX);
-    const arrowLen = 10.8;
+    const arrowLen = 10.8 * scale;
     
     ctx.fillStyle = colorSolid;
     ctx.beginPath();
@@ -1604,51 +1639,53 @@ function drawDragPath(ctx, startX, startY, endX, endY) {
 function drawScrollIndicator(ctx, amount, canvasWidth, canvasHeight) {
     const phase = animationState.phase;
     const opacity = animationState.overlayOpacity;
+    const scale = animationState.overlayScale;
+    const hue = animationState.overlayHue;
     const pulseAlpha = (0.7 + Math.sin(phase) * 0.3) * opacity;
     
     const isUp = amount > 0;
-    const color = `rgba(100, 200, 150, ${pulseAlpha})`;
+    const color = rotateHue(100, 200, 150, hue, pulseAlpha);
     
     ctx.save();
     
-    const x = canvasWidth - 60;
+    const x = canvasWidth - 60 * scale;
     const centerY = canvasHeight / 2;
     
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * scale;
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
     
     ctx.beginPath();
     if (ctx.roundRect) {
-        ctx.roundRect(x - 25, centerY - 60, 50, 120, 10);
+        ctx.roundRect(x - 25 * scale, centerY - 60 * scale, 50 * scale, 120 * scale, 10 * scale);
     } else {
         // Fallback for browsers without roundRect
-        ctx.rect(x - 25, centerY - 60, 50, 120);
+        ctx.rect(x - 25 * scale, centerY - 60 * scale, 50 * scale, 120 * scale);
     }
     ctx.fill();
     ctx.stroke();
     
-    const arrowY = centerY + (isUp ? -20 : 20);
-    const arrowOffset = Math.sin(phase * 2) * 5;
+    const arrowY = centerY + (isUp ? -20 * scale : 20 * scale);
+    const arrowOffset = Math.sin(phase * 2) * 5 * scale;
     
     ctx.fillStyle = color;
     ctx.beginPath();
     if (isUp) {
-        ctx.moveTo(x, arrowY - 20 - arrowOffset);
-        ctx.lineTo(x - 15, arrowY + arrowOffset);
-        ctx.lineTo(x + 15, arrowY + arrowOffset);
+        ctx.moveTo(x, arrowY - 20 * scale - arrowOffset);
+        ctx.lineTo(x - 15 * scale, arrowY + arrowOffset);
+        ctx.lineTo(x + 15 * scale, arrowY + arrowOffset);
     } else {
-        ctx.moveTo(x, arrowY + 20 + arrowOffset);
-        ctx.lineTo(x - 15, arrowY - arrowOffset);
-        ctx.lineTo(x + 15, arrowY - arrowOffset);
+        ctx.moveTo(x, arrowY + 20 * scale + arrowOffset);
+        ctx.lineTo(x - 15 * scale, arrowY - arrowOffset);
+        ctx.lineTo(x + 15 * scale, arrowY - arrowOffset);
     }
     ctx.closePath();
     ctx.fill();
     
     ctx.fillStyle = color;
-    ctx.font = 'bold 14px "Share Tech Mono", monospace';
+    ctx.font = `bold ${14 * scale}px "Share Tech Mono", monospace`;
     ctx.textAlign = 'center';
-    ctx.fillText(Math.abs(amount).toString(), x, centerY + (isUp ? 35 : -25));
+    ctx.fillText(Math.abs(amount).toString(), x, centerY + (isUp ? 35 * scale : -25 * scale));
     
     ctx.restore();
 }
@@ -1656,45 +1693,47 @@ function drawScrollIndicator(ctx, amount, canvasWidth, canvasHeight) {
 function drawSleepIndicator(ctx, duration, canvasWidth, canvasHeight) {
     const phase = animationState.phase;
     const opacity = animationState.overlayOpacity;
+    const scale = animationState.overlayScale;
+    const hue = animationState.overlayHue;
     const pulseAlpha = (0.7 + Math.sin(phase) * 0.3) * opacity;
     
-    const color = `rgba(150, 150, 255, ${pulseAlpha})`;
-    const colorSolid = `rgba(150, 150, 255, ${0.8 * opacity})`;
+    const color = rotateHue(150, 150, 255, hue, pulseAlpha);
+    const colorSolid = rotateHue(150, 150, 255, hue, 0.8 * opacity);
     
     ctx.save();
     
     const x = canvasWidth / 2;
-    const y = 80;
+    const y = 80 * scale;
     
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
     ctx.strokeStyle = colorSolid;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * scale;
     
-    const containerWidth = 200;
-    const containerHeight = 80;
+    const containerWidth = 200 * scale;
+    const containerHeight = 80 * scale;
     
     ctx.beginPath();
     if (ctx.roundRect) {
-        ctx.roundRect(x - containerWidth / 2, y - containerHeight / 2, containerWidth, containerHeight, 10);
+        ctx.roundRect(x - containerWidth / 2, y - containerHeight / 2, containerWidth, containerHeight, 10 * scale);
     } else {
         ctx.rect(x - containerWidth / 2, y - containerHeight / 2, containerWidth, containerHeight);
     }
     ctx.fill();
     ctx.stroke();
     
-    const clockX = x - 60;
+    const clockX = x - 60 * scale;
     const clockY = y;
-    const clockRadius = 20;
+    const clockRadius = 20 * scale;
     
     ctx.strokeStyle = colorSolid;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * scale;
     ctx.beginPath();
     ctx.arc(clockX, clockY, clockRadius, 0, Math.PI * 2);
     ctx.stroke();
     
     const handAngle = phase * 2;
     ctx.strokeStyle = colorSolid;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * scale;
     ctx.lineCap = 'round';
     
     ctx.beginPath();
@@ -1714,15 +1753,15 @@ function drawSleepIndicator(ctx, duration, canvasWidth, canvasHeight) {
     ctx.stroke();
     
     ctx.fillStyle = colorSolid;
-    ctx.font = 'bold 16px "Share Tech Mono", monospace';
+    ctx.font = `bold ${16 * scale}px "Share Tech Mono", monospace`;
     ctx.textAlign = 'center';
-    ctx.fillText('SLEEP', x + 20, y - 10);
+    ctx.fillText('SLEEP', x + 20 * scale, y - 10 * scale);
     
     const durationText = duration >= 1.0 
         ? `${duration.toFixed(1)}s` 
         : `${(duration * 1000).toFixed(0)}ms`;
-    ctx.font = '14px "Share Tech Mono", monospace';
-    ctx.fillText(durationText, x + 20, y + 15);
+    ctx.font = `${14 * scale}px "Share Tech Mono", monospace`;
+    ctx.fillText(durationText, x + 20 * scale, y + 15 * scale);
     
     ctx.restore();
 }
@@ -1749,6 +1788,11 @@ function updateActionInfoPanel(action, dragEnd) {
         case 'click':
             badgeClass += ' action-click';
             contentHtml = `Click at <span class="coordinates">(${action.x}, ${action.y})</span>`;
+            break;
+        case 'leftClick':
+            badgeText = 'LEFT CLICK';
+            badgeClass += ' action-click';
+            contentHtml = `Left-click at <span class="coordinates">(${action.x}, ${action.y})</span>`;
             break;
         case 'doubleClick':
             badgeText = 'DOUBLE CLICK';
@@ -1826,6 +1870,78 @@ function updateActionInfoPanel(action, dragEnd) {
     typeBadge.className = badgeClass;
     typeBadge.textContent = badgeText;
     content.innerHTML = contentHtml;
+}
+
+// ============================================
+// COLOR HELPER FUNCTIONS
+// ============================================
+
+// Convert RGB to HSL
+function rgbToHsl(r, g, b) {
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h, s, l = (max + min) / 2;
+    
+    if (max === min) {
+        h = s = 0; // achromatic
+    } else {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+            case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+            case g: h = ((b - r) / d + 2) / 6; break;
+            case b: h = ((r - g) / d + 4) / 6; break;
+        }
+    }
+    
+    return { h: h * 360, s: s * 100, l: l * 100 };
+}
+
+// Convert HSL to RGB
+function hslToRgb(h, s, l) {
+    h /= 360;
+    s /= 100;
+    l /= 100;
+    
+    let r, g, b;
+    
+    if (s === 0) {
+        r = g = b = l; // achromatic
+    } else {
+        const hue2rgb = (p, q, t) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1/6) return p + (q - p) * 6 * t;
+            if (t < 1/2) return q;
+            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+        };
+        
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+    }
+    
+    return {
+        r: Math.round(r * 255),
+        g: Math.round(g * 255),
+        b: Math.round(b * 255)
+    };
+}
+
+// Apply hue rotation to an RGB color and return rgba string
+function rotateHue(r, g, b, hueShift, alpha) {
+    const hsl = rgbToHsl(r, g, b);
+    hsl.h = (hsl.h + hueShift) % 360;
+    if (hsl.h < 0) hsl.h += 360;
+    const rgb = hslToRgb(hsl.h, hsl.s, hsl.l);
+    return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
 }
 
 // ============================================
